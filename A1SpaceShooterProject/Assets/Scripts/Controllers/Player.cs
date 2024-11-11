@@ -17,12 +17,11 @@ public class Player : MonoBehaviour
 
     public List<Vector3> points;
 
-    public List<int> IsPointOccupied;
-
     public float accelerationTime = 1f;
     public float decelerationTime = 1f;
     public float maxSpeed = 7.5f;
     public float turnSpeed = 180f;
+    public float cargoDrag;
 
     public int numPoints;
     public float asteroidDetectionDistance;
@@ -34,10 +33,15 @@ public class Player : MonoBehaviour
 
     public int shotBurst;
     public float burstInterval;
-    public int collectionLimit;
 
-    public bool isShooting = false;
-    public bool isCollecting = false;
+    bool isShooting = false;
+    bool isCollecting = false;
+    bool Attached = false;
+    bool shieldAvailable =true;
+    int attachedAsteroid;
+
+    public float shieldLimit;
+    public float UsedShield;
 
     private void Start()
     {
@@ -64,35 +68,47 @@ public class Player : MonoBehaviour
 
         if (Input.GetKey(KeyCode.Space))
         {
-            //shield
-            //shield is broken and not in half
-            Circle(numPoints, 2, Color.green, 2);
+            UsedShield += 1 * Time.deltaTime;
+            UsedShield = Mathf.Clamp(UsedShield, 0, shieldLimit);
+            if (shieldAvailable)
+            {
+                if (UsedShield > shieldLimit)
+                {
+                    return;
+                }
+                print(UsedShield);
+                EnemyDetection();
+            }
+            
+        }
+        if (!Input.GetKey(KeyCode.Space))
+        {
+            //not apparent to the player and unituitive
+            UsedShield -= 1f * Time.deltaTime;
+            UsedShield = Mathf.Clamp(UsedShield,0,shieldLimit);
+
         }
         if (Input.GetKeyDown(KeyCode.Q))
         {
-            collectionLimit = 0;
-           
-            //also not consistent in detecting a bool press
-            //asteroid collection
             isCollecting = !isCollecting;
         }
         if (isCollecting)
         {
             AsteroidCollection();
         }
-
-        for (int i = 0; i < points.Count; i++)
+        else
         {
-            print($"what is in is point occupided index: {IsPointOccupied[i]}");
-            if (IsPointOccupied[i] != 0)
-            {
-                asteroidTransforms[IsPointOccupied[i]].position = points[i];
-            }
+            Attached = false;
+            attachedAsteroid = 0;
         }
-        
+
     }
     void PlayerMovement()
     {
+        if (Attached)
+        {
+            cargoDrag = 0.85f;
+        } else { cargoDrag = 1f; }
         Vector3 moveDirection = Vector3.zero;
 
         if (Input.GetKey(KeyCode.W))
@@ -107,7 +123,7 @@ public class Player : MonoBehaviour
 
         if (moveDirection.sqrMagnitude > 0)
         {
-            currentVelocity += Time.deltaTime * acceleration * moveDirection;
+            currentVelocity += Time.deltaTime * acceleration * cargoDrag * moveDirection;
             if (currentVelocity.sqrMagnitude > maxSpeedSqr)
             {
                 currentVelocity = currentVelocity.normalized * maxSpeed;
@@ -166,46 +182,31 @@ public class Player : MonoBehaviour
         
         for (int i = 0; i < asteroidTransforms.Count; i++)
         {
-            for(int j = 0;j<IsPointOccupied.Count;j++)
-            {
-                if (IsPointOccupied[j] == i) 
-                {
-                    break; 
-                }
-            }
-            if (collectionLimit >3) { break; }
-            Color radarColor = Color.white;
+
+            if (Attached) { break; }
             Vector3 Target = asteroidTransforms[i].position - transform.position;
             float magnitude = Mathf.Sqrt((Target.x * Target.x) + (Target.y * Target.y));
-
-            Debug.DrawLine(transform.position, asteroidTransforms[i].position, radarColor);
             if (magnitude < asteroidDetectionDistance)
             {
+                //i gives the value of which one is in contact;
+                print(i);
+                attachedAsteroid = i;
+                Attached = true;
+                asteroidTransforms[i].position = transform.position + Vector3.down;
+                Debug.DrawLine(asteroidTransforms[i].position, transform.position, Color.magenta);
                 //I need to delay this so it checks it once and ignores said asteroid
-                
-                radarColor = Color.red;
                 //this will retain the index of the detectd asteroid
-                i = IsPointOccupied[checkAvailableSpaces()];
-                asteroidTransforms[i].position = points[collectionLimit];
-                collectionLimit++;
             }
         }
-        Circle(3, 1.5f, Color.blue, 1);
-
-    }
-    //have a method that goes through a list and returns the first available space 
-    public int checkAvailableSpaces()
-    {
-        for (int i = 0;i < IsPointOccupied.Count;i++)
+        if (Attached)
         {
-            if (IsPointOccupied[i] ==0) { print($" not occupied point{i}"); return i; }
+            asteroidTransforms[attachedAsteroid].position = transform.position + Vector3.down;
         }
-        return -1;
-        //if(checkAvailableSpaces() == -1) { for (int j = 0; j < IsPointOccupied.Count; j++) { IsPointOccupied[i] = false; } }
+        Circle(5, 1.5f, Color.blue, 1);
     }
-
-    void EnemyDetection(GameObject IncomingTarget)
+    void EnemyDetection()
     {
+        GameObject IncomingTarget = enemy;
         //If the enemy is within a certain distance to the "active" sheild points it it detected.
         //Debug.DrawLine(enemyTransform.position - transform.position + transform.position,transform.position);
         //get the magnitude of two points so pythag
@@ -213,6 +214,8 @@ public class Player : MonoBehaviour
         // i want to use this method for the active points in the shield
         for (int i = 0; i < points.Count / 2 +1; i++)
         {
+            //fixed it so the enemy can be destroyed and it still operates
+            if ( IncomingTarget == null) { break; }
             //reliant on its restrictive nature as the object strill needs to be specifically referenced.
             Vector3 TargetCollider = IncomingTarget.transform.position - points[i];
             float magnitude = Mathf.Sqrt((TargetCollider.x * TargetCollider.x) + (TargetCollider.y * TargetCollider.y));
@@ -222,6 +225,7 @@ public class Player : MonoBehaviour
                 Destroy(IncomingTarget);
             }
         }
+        Circle(numPoints, 2, Color.red, 2);
 
     }
     //changed parameters to make use of a single method to draw multiple shapes, versatility

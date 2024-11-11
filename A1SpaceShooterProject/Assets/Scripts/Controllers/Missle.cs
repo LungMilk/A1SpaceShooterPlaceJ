@@ -20,6 +20,6 @@ public class Missle : MonoBehaviour
         //pos.x += 10 * Time.deltaTime;
         //transform.SetLocalPositionAndRotation(pos, quat);
         transform.Translate(Vector3.up * 10 * Time.deltaTime,Space.Self);
-        
+        //ffff
     }
 }
